@@ -314,7 +314,7 @@
     <Link>
       <AdditionalDependencies>opengl32.lib;fmod_vc.lib;zdll.lib;ws2_32.lib;dinput8.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
-      <AdditionalLibraryDirectories>..\..\shared\win\lib;..\..\shared\win\fmodstudio\api\lowlevel\lib;..\dxsdk\Lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\shared\win\lib;..\..\shared\win\fmodstudio\api\core\lib\x86;..\dxsdk\Lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(OutDir)$(TargetName).pdb</ProgramDatabaseFile>
       <SubSystem>Windows</SubSystem>
@@ -362,7 +362,7 @@
     <Link>
       <AdditionalDependencies>opengl32.lib;fmod_vc.lib;zdll.lib;ws2_32.lib;dinput8.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
-      <AdditionalLibraryDirectories>..\..\shared\win\lib;..\dxsdk\Lib\x86;..\..\shared\win\fmodstudio\api\lowlevel\lib;..\..\shared\win\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\shared\win\lib;..\dxsdk\Lib\x86;..\..\shared\win\fmodstudio\api\core\lib\x86;..\..\shared\win\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -385,7 +385,7 @@
     <Link>
       <AdditionalDependencies>opengl32.lib;fmod_vc.lib;zdll.lib;ws2_32.lib;dinput8.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
-      <AdditionalLibraryDirectories>..\..\shared\win\lib;..\dxsdk\Lib\x86;..\..\shared\win\fmodstudio\api\lowlevel\lib;..\..\shared\win\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\shared\win\lib;..\dxsdk\Lib\x86;..\..\shared\win\fmodstudio\api\core\lib\x86;..\..\shared\win\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>

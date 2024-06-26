@@ -21,6 +21,7 @@ windows_vs2017/x64/
 *.VC.opendb
 *.user
 
+
 #copied from Seth's gitignore, sorry it's so messy
 
 bin/Unused
@@ -45,6 +46,7 @@ bin/interface_original
 bin/miditoxm
 bin/processed_audio
 bin/dinkpak
+bin/
 
 *.zip
 *.ncb

@@ -13,10 +13,11 @@
 const int C_DINK_MAX_ITEMS = 16;
 const int C_DINK_MAX_MAGICS = 8;
 
-void ThinkSprite(int h, bool get_frame);
+void ThinkSprite(int h, bool get_frame, bool bDebug = false);
 void ApplyAspectRatioGLMatrix();
 void ScanSeqFilesIfNeeded(int seq);
 bool pre_figure_out(const char *line, int load_seq, bool bLoadSpriteOnly);
+int DepthSortSprites();
 
 #define C_DINK_SCREEN_TRANSITION_TIME_MS 400
 
@@ -109,6 +110,7 @@ LPDIRECTDRAWSURFACE     lpDDSBuffer;       // Offscreen surface
 LPDIRECTDRAWSURFACE     g_tileScreens[C_TILE_SCREEN_COUNT];       // Game pieces
 LPDIRECTDRAWSURFACE     g_pSpriteSurface[C_MAX_SPRITES];
 
+
 bool IsCorruptedSeq(int seq);
 //redink1 added for recursive scope checking
 void decipher_string(char line[200], int script);
@@ -168,6 +170,20 @@ void UnloadAllGraphics();
 #define C_MAX_BACKGROUND_SPRITES_AT_ONCE 200 //too many and it will slow down
 
 #endif
+
+
+//adjusted from https://stackoverflow.com/questions/36072054/get-the-inverse-of-a-function-millibels-to-percentage-percentage-to-millibels
+
+double ConvertMillibelsToPercentage(int value)
+{
+	double exponent = ((value / 1000.0) + 10);
+	double numerator = 100.0 * (pow(2, exponent) - 1);
+	double final =  (numerator / 1023.0) / 100.0f;
+
+
+	return final;
+}
+
 
 void BackgroundSpriteManager::Clear()
 {
@@ -375,7 +391,7 @@ void finiObjects()
 	{
 		SAFE_DELETE(g_tileScreens[i]);
 	}
-
+	
 	SAFE_DELETE(lpDDSBuffer);
 	SAFE_DELETE(lpDDSBackGround);
 
@@ -533,7 +549,7 @@ void setup_anim (int seq, int sequence,int delay)
 	//g_dglos.g_seq[seq].frame[g_dglos.g_seq[sequence].last+1] = 0;
 }
 
-byte get_hard(int h,int x1, int y1)
+uint8 get_hard(int h,int x1, int y1)
 {
 	int value;
 
@@ -554,7 +570,7 @@ byte get_hard(int h,int x1, int y1)
 	return(value);  
 }
 
-byte get_hard_play(int h,int x1, int y1)
+uint8 get_hard_play(int h,int x1, int y1)
 {
 
 	int value;
@@ -588,7 +604,7 @@ byte get_hard_play(int h,int x1, int y1)
 }
 
 
-byte get_hard_map(int h,int x1, int y1)
+uint8 get_hard_map(int h,int x1, int y1)
 {
 	if ((x1 < 0) || (y1 < 0)) return(0);
 	if ((x1 > 599) ) return(0);
@@ -830,10 +846,31 @@ bool LoadTileScreenIfNeeded(int h, bool &bRequireRebuildOut)
 	}
 
 	assert(!g_tileScreens[h]);
+	string finalFilename;
+
+	finalFilename = GetFileLocationString(ModifyFileExtension(fName, "png"));
+	
+	
+	if (FileExists(finalFilename))
+	{
+	}
+	else
+	{
+		finalFilename = GetFileLocationString(fName);
+	}
+
+
+
+
 #ifdef _DEBUG
-LogMsg("Loading tilescreen %s", fName.c_str());
+LogMsg("Loading tilescreen %s", finalFilename.c_str());
 #endif
-	g_tileScreens[h] = LoadBitmapIntoSurface(GetFileLocationString(fName).c_str(), TRANSPARENT_NONE, IDirectDrawSurface::MODE_NORMAL);
+
+
+
+
+
+	g_tileScreens[h] = LoadBitmapIntoSurface(finalFilename.c_str(), TRANSPARENT_NONE, IDirectDrawSurface::MODE_NORMAL);
 	
 	if (g_tileScreens[h] && g_tileScreens[h]->m_pSurf->GetSurfaceType() != SoftSurface::SURFACE_PALETTE_8BIT)
 	{
@@ -909,7 +946,7 @@ void fix_dead_sprites( void )
 	{
 		if (g_dglos.g_playerInfo.spmap[*pmap].type[i] == 6)
 		{
-			if (g_dglos.g_playerInfo.spmap[*pmap].last_time > GetApp()->GetGameTick())
+			if (g_dglos.g_playerInfo.spmap[*pmap].last_time > (int)GetApp()->GetGameTick())
 			{
 #ifdef _DEBUG
 				LogMsg("Woah, crazy time on dead map sprite (%d) detected", i);
@@ -986,12 +1023,12 @@ void load_map(const int num)
 
 	while (holdme > 0)
 	{
-		int bytesRead = pFile->Read((byte*)buffer, rt_min(holdme, bufferSize));
+		int bytesRead = pFile->Read((uint8*)buffer, rt_min(holdme, bufferSize));
 		holdme -= bytesRead;
 	}
 	
 	//Msg("Trying to read %d bytes with offset of %d",lsize,holdme);
-	pFile->Read((byte*)&g_dglos.g_smallMap, lsize);
+	pFile->Read((uint8*)&g_dglos.g_smallMap, lsize);
 	//int shit = fread( &g_dglos.g_smallMap, lsize, 1, fp);       /* current player */
 	//       Msg("Read %d bytes.",shit);
 	//if (shit == 0) LogMsg("ERROR:  Couldn't read map %d?!?", num);
@@ -1045,6 +1082,7 @@ void save_game(int num)
 	g_dglos.g_playerInfo.base_idle = g_sprite[1].base_idle;
 	g_dglos.g_playerInfo.base_walk = g_sprite[1].base_walk;
 	g_dglos.g_playerInfo.base_hit = g_sprite[1].base_hit;
+	g_dglos.g_playerInfo.attack_wait = g_sprite[1].attack_wait;
 
 	//redink1 - save game things for storing new map, palette, and tile information
 	strncpy(g_dglos.g_playerInfo.mapdat, g_dglos.current_map, 50);
@@ -1377,7 +1415,7 @@ bool load_game(int num)
 		g_sprite[1].strength = g_dglos.g_playerInfo.strength;
 		g_sprite[1].defense = g_dglos.g_playerInfo.defense;
 		g_sprite[1].que = g_dglos.g_playerInfo.que;
-
+		
 		if (g_dglos.g_playerInfo.m_gameTime != 0)
 		{
 			GetApp()->SetGameTick(g_dglos.g_playerInfo.m_gameTime);
@@ -1392,6 +1430,7 @@ bool load_game(int num)
 		g_sprite[1].base_idle = g_dglos.g_playerInfo.base_idle;
 		g_sprite[1].base_walk = g_dglos.g_playerInfo.base_walk;
 		g_sprite[1].base_hit = g_dglos.g_playerInfo.base_hit;
+		g_sprite[1].attack_wait = g_dglos.g_playerInfo.attack_wait;
 
 		int script = load_script("main", 0, true);
 		
@@ -1638,7 +1677,7 @@ void load_info()
 	{
 		LogMsg("World data loaded."); 
 		
-		pFile->Read((byte*)&g_MapInfo, sizeof(struct map_info));
+		pFile->Read((uint8*)&g_MapInfo, sizeof(struct map_info));
 		//fread(&g_MapInfo,sizeof(struct map_info),1,fp);
 		delete pFile;
 		//fclose(fp);
@@ -1661,7 +1700,7 @@ bool load_hard(void)
 	else
 	{
 		//fread(&g_hmap,sizeof(struct hardness),1,fp);
-		pFile->Read((byte*)&g_hmap, sizeof(struct hardness));
+		pFile->Read((uint8*)&g_hmap, sizeof(struct hardness));
 		delete(pFile);
 	}
 	return true;
@@ -1702,7 +1741,7 @@ bool LoadSpriteSingleFrame(string fNameBase, int seq, int oo, int picIndex, eTra
 	fName += toString(oo) + ".bmp";
 
 	int pMemSize = 0;
-	byte *pMem = pReader->LoadFileIntoMemory(fName, &pMemSize, fNameBase + "01.bmp");
+	uint8 *pMem = pReader->LoadFileIntoMemory(fName, &pMemSize, fNameBase + "01.bmp");
 	
 	if (g_dglos.g_seq[seq].m_spaceAllowed != 0)
 	{
@@ -1952,7 +1991,7 @@ bool load_sprites(char org[512], int seq, int speed, int xoffset, int yoffset, r
 			if (seq == 442)
 			{
 				int pMemSize = 0;
-				byte* pMem = reader.LoadFileIntoMemory(fNameBase + "01.bmp", &pMemSize, fNameBase + "01.bmp");
+				uint8* pMem = reader.LoadFileIntoMemory(fNameBase + "01.bmp", &pMemSize, fNameBase + "01.bmp");
 
 				if (!pMem)
 				{
@@ -2970,11 +3009,8 @@ bool SwitchToRGBAIfNeeded(LPDIRECTDRAWSURFACE *pDXSurf, SoftSurface *pSoftSurf)
 void BlitGUIOverlay()
 {
 	
-	//if (GetDinkGameMode() == DINK_GAME_MODE_MOUSE) return;
-
 	if (GetDinkSubGameMode() == DINK_SUB_GAME_MODE_SHOWING_BMP) return;
 
-	
 	if (g_dglos.status_might_not_require_update == 1) return;
 
 	rtRect32 rcRect;
@@ -2983,67 +3019,13 @@ void BlitGUIOverlay()
 	rcRect.right = C_DINK_SCREENSIZE_X;
 	rcRect.bottom = 80;
 
-	/*
-	if (*pupdate_status == 0)
-	{
-		//draw black bars around things
-		DrawFilledRect(0, 400, rcRect.right, rcRect.bottom, MAKE_RGBA(0,0,0,255));
-
-		rcRect.right = 20;
-		rcRect.bottom = 400;
-		DrawFilledRect(0, 0, rcRect.right, rcRect.bottom, MAKE_RGBA(0,0,0,255));
-		DrawFilledRect(620, 0, rcRect.right, rcRect.bottom, MAKE_RGBA(0,0,0,255));
-		
-		return;
-	}
-	*/
-
-
-	/*
-
-	g_dglos.g_guiRaise = next_raise();
-	if ( *pexper < g_dglos.g_guiRaise )
-	{
-		g_dglos.g_guiExp = *pexper;
-	}
-	else
-	{
-		g_dglos.g_guiExp = g_dglos.g_guiRaise - 1;
-	}
-
-	*/
-
-	/*
-	g_dglos.g_guiStrength = *pstrength;
-	g_dglos.g_guiMagic = *pmagic;
-	g_dglos.g_guiGold = *pgold;
-	g_dglos.g_guiDefense = *pdefense;
-	*/
 	g_dglos.g_guiLastMagicDraw = 0;    
 	
 	if (g_dglo.m_curView == DinkGlobals::VIEW_ZOOMED || g_dglo.m_viewOverride == DinkGlobals::VIEW_ZOOMED) return;
 	
 	if (!check_seq_status(180)) return;
-
-	/*
-	if (lpDDSBack && lpDDSBack->m_pSurf && lpDDSBack->m_pSurf->GetSurfaceType() == SoftSurface::SURFACE_PALETTE_8BIT
-		&& g_pSpriteSurface[g_dglos.g_seq[180].frame[3]]->m_pSurf->GetSurfaceType() == SoftSurface::SURFACE_RGBA
-		|| g_pSpriteSurface[g_dglos.g_seq[180].frame[3]]->m_pSurf->GetSurfaceType() == SoftSurface::SURFACE_RGBA)
-	{
-		LogMsg("Freak out!");
-		//delete lpDDSBuffer;
-		//lpDDSBuffer = InitOffscreenSurface(C_DINK_SCREENSIZE_X, C_DINK_SCREENSIZE_Y, IDirectDrawSurface::MODE_SHADOW_GL, true);
-
-	}
-
-	SwitchToRGBAIfNeeded(&lpDDSBack, g_pSpriteSurface[g_dglos.g_seq[180].frame[1]]->m_pSurf);
-	SwitchToRGBAIfNeeded(&lpDDSBack, g_pSpriteSurface[g_dglos.g_seq[180].frame[2]]->m_pSurf);
-	SwitchToRGBAIfNeeded(&lpDDSBack, g_pSpriteSurface[g_dglos.g_seq[180].frame[3]]->m_pSurf);
-	*/
-		
+	
 	lpDDSBack->BltFast( 0, 400, g_pSpriteSurface[g_dglos.g_seq[180].frame[3]], &rcRect  , DDBLTFAST_NOCOLORKEY );
-	
-	
 	
 	rcRect.left = 0;
 	rcRect.top = 0;
@@ -3068,10 +3050,6 @@ void BlitGUIOverlay()
 		draw_mlevel( (float(*pmagic_level) / float(*pmagic_cost))*100, true );
 	}
 
-	
-
-
-	
 }
 
 bool inside_box(int x1, int y1, rtRect32 box)
@@ -3100,7 +3078,9 @@ int add_sprite_dumb(int x1, int y, int brain,int pseq, int pframe,int size )
 			SAFE_DELETE(g_customSpriteMap[x]);
 			memset(&g_sprite[x], 0, sizeof(g_sprite[x]));
 
-			//Msg("Making sprite %d.",x);
+#ifdef _DEBUG
+		//	LogMsg("Making sprite %d with brain %d at x: %d y: %d.",x, brain, x1, y);
+#endif
 			g_sprite[x].active = true;
 			g_sprite[x].x = x1;
 			g_sprite[x].y = y;
@@ -3211,40 +3191,7 @@ bool get_box (int spriteID, rtRect32 * pDstRect, rtRect32 * pSrcRect )
 	if (originalSurfPic != g_dglos.g_seq[g_sprite[spriteID].pseq].frame[g_sprite[spriteID].pframe]
 		&& originalSurfPic != 0)
 	{
-		//wait.. this isn't the original picture, a set_frame_frame has been used!  We want the offset from the original.
 		
-		/*
-		//is the parent seq of the original an anim?
-		if (g_dglos.g_seq[g_dglos.g_picInfo[originalSurfPic].m_parentSeq].m_bIsAnim )
-		{
-		
-			//first, does the original pic have stuff set for it?
-			txoffset = g_dglos.g_picInfo[originalSurfPic].xoffset;
-			tyoffset = g_dglos.g_picInfo[originalSurfPic].yoffset;
-					
-			if (txoffset == 0 && tyoffset == 0)
-			{
-				//No?  Well, how about the whole anim in general
-				txoffset = g_dglos.g_seq[g_dglos.g_picInfo[originalSurfPic].m_parentSeq].m_xoffset;
-				tyoffset = g_dglos.g_seq[g_dglos.g_picInfo[originalSurfPic].m_parentSeq].m_yoffset;
-
-			}
-		}
-		else
-		{
-			txoffset = g_dglos.g_picInfo[originalSurfPic].xoffset;
-			tyoffset = g_dglos.g_picInfo[originalSurfPic].yoffset;
-
-		}
-		*/
-//		picID = originalSurfPic;
-	//	txoffset = g_dglos.g_picInfo[picID].xoffset;
-		//tyoffset = g_dglos.g_picInfo[picID].yoffset;
-
-
-		//this is.. probably not a good solution.  Some dmods want the original offset, others want to keep the offset of the frame they are replacing.  If speed == 0, it's probably not a real anim and we'll
-		//be happy with the replacement pics offset.  I think.
-
 		//this works for the dmod mayhem
 		if (g_dglos.g_seq[g_dglos.g_picInfo[originalSurfPic].m_parentSeq].m_speed == 0)
 		{
@@ -3257,8 +3204,6 @@ bool get_box (int spriteID, rtRect32 * pDstRect, rtRect32 * pSrcRect )
 			txoffset = g_dglos.g_picInfo[picID].xoffset;
 			tyoffset = g_dglos.g_picInfo[picID].yoffset;
 		}
-
-	
 
 	}
 	else
@@ -3535,7 +3480,7 @@ bool read_next_line(int script, char *line)
 	for (int k = g_scriptInstance[script]->current;  (k < g_scriptInstance[script]->end); k++)
 	{
 #ifdef _DEBUG
-		LogMsg("..%d",k);
+//		LogMsg("..%d",k);
 #endif
 		strchar(line, g_scriptBuffer[script][k]);
 		
@@ -3971,15 +3916,6 @@ int get_var(int script, char* name)
 		if (script <= 0)
 			break;
 
-		//Bugfix... if there is no rinfo[script] entry (like if kill this task was used), we go directly to the globals.
-		//Thanks Tal!
-		//if (!rinfo[script])
-		//  script = 0;
-		//Go into the next proc from the script.  If there are no parent procs, it should be 0, which is global.
-		//else
-		//    script = rinfo[script]->proc_return;
-
-		//Changed to not reference the parent procedure's variable list at all... just go on to globals.
 		script = 0;
 	}
 
@@ -4073,26 +4009,6 @@ void decipher_string(char line[512], int script)
 	//redink1 replaced with recursive function for finding longest variable
     //recurse_var_replace( 1, script, line, NULL );
     var_replace(script, line);
-
-	//  	
-// Old version that can make mistakes, I turned it back on to test the difference in speed...
-// Hmm, Dan had recurse_scope(g_dglos.g_playerInfo.var[i].scope, script) in here but I don't see that function so
-// skipping for now
-//
-
-// 
-// 	for (int i = 1; i < max_vars; i ++)
-// 	{
-// 		
-// 		if (g_dglos.g_playerInfo.var[i].active == true)
-// 			if ( g_dglos.g_playerInfo.var[i].scope == 0 || g_dglos.g_playerInfo.var[i].scope == script)
-// 			{
-// 			sprintf(crap, "%d", g_dglos.g_playerInfo.var[i].var);
-// 			replace(g_dglos.g_playerInfo.var[i].name, crap, line);
-// 			
-// 			}
-// 	}
-
 
 	if ((strchr(line, '&') != NULL) && (script != 0))
 	{
@@ -4414,8 +4330,6 @@ LPDIRECTDRAWSURFACE GetSurfaceFromSeq(int seq, int frame = 1)
 
 bool check_sprite_status(int spriteID)
 {
-
-	
 	check_seq_status(g_sprite[spriteID].pseq, g_sprite[spriteID].pframe);
 	check_seq_status(g_sprite[spriteID].seq, g_sprite[spriteID].frame);
 	return true;
@@ -5355,7 +5269,8 @@ bool PlayMidi(const char *sFileName)
 	string finalPath = GetFileLocationString(fName);
 	if (FileExists(finalPath))
 	{
-		GetAudioManager()->Play(GetFileLocationString(fName), true, true, false);
+		AudioHandle musicHandle = GetAudioManager()->Play(GetFileLocationString(fName), true, true, false);
+		//GetAudioManager()->SetVol(musicHandle, 0.1);
 	}
 	else
 	{
@@ -5365,15 +5280,6 @@ bool PlayMidi(const char *sFileName)
 
 	g_dglo.m_lastMusicPath = sFileName;
 
-	/*
-	if (!FileExists(fName) && !g_dglo.m_dmodGameDir.empty())
-	{
-		//asking for a mid that doesn't exist in the DMOD dir probably, let's use the original Dink one
-		fName = g_dglo.m_gamePathWithDir+
-	}
-	*/
-
-	
 	//LogMsg("Playing music %s", sFileName);
 	return true;
 }
@@ -8452,6 +8358,7 @@ pass:
 			int32 p[20] = {2,0,0,0,0,0,0,0,0,0};  
 			if (get_parms(ev[1], script, h, p))
 			{
+				decipher_string(slist[0], script);
 				LogMsg(slist[0]);
 			}
 
@@ -8529,12 +8436,10 @@ pass:
 			{
 				if (sound_on)  
 				{
-					//let's set one sound to survive
 					if (g_nlist[0] > 0)
 					{
 						soundinfo[g_nlist[0]].vol = g_nlist[1];
-
-						soundbank[g_nlist[0]].SetVolume(g_nlist[1]);
+						soundbank[g_nlist[0]].SetVolumeLogarithmic(g_nlist[1]);
 					}
 				}
 			}
@@ -8552,7 +8457,6 @@ pass:
 			{
 				if (sound_on)  
 				{
-					//let's set one sound to survive
 					if (g_nlist[0] > 0)
 					{
 						soundbank[g_nlist[0]].Stop();
@@ -8643,8 +8547,6 @@ pass:
 						LoadState(fName, false);
 						ShowQuickMessage("Game loaded.");
 					}
-
-
 
 				} else
 				{
@@ -9046,6 +8948,29 @@ pass:
 			}  else LogMsg("Failed to set mode");
 
 			strcpy_safe(pLineIn, h);  
+			ugly_return(0);
+		}
+		if (compare(ev[1], (char*)"set_music_vol"))
+		{
+			h = &h[strlen(ev[1])];
+			int32 p[20] = { 1,0,0,0,0,0,0,0,0,0 };
+			if (get_parms(ev[1], script, h, p))
+			{
+				float volMod = (float)g_nlist[0] / (float)100;
+				//force volMod to be between 0 and 1
+				if (volMod < 0) volMod = 0;
+				if (volMod > 1) volMod = 1;
+
+				LogMsg("Setting DMOD music mod to %.2f", volMod);
+				GetAudioManager()->SetMusicVol(GetApp()->GetVar("music_vol")->GetFloat() * volMod);
+
+				//oh, let's allow savestates to remember this setting
+				g_dglos.m_hasMusicModApplied = true;
+				g_dglos.m_musicModVolume = volMod;
+			}
+			else LogMsg("Failed to set_music_vol");
+
+			strcpy_safe(pLineIn, h);
 			ugly_return(0);
 		}
 
@@ -9597,13 +9522,13 @@ pass:
 
 		if (compare(ev[1], (char*)"disable_all_sprites"))
 		{     
-			for (int jj = 1; jj < g_dglos.last_sprite_created; jj++)
+			for (int jj = 1; jj <= g_dglos.last_sprite_created; jj++)
 				if (g_sprite[jj].active) g_sprite[jj].disabled = true;
 			ugly_return(0);
 		}
 		if (compare(ev[1], (char*)"enable_all_sprites"))
 		{     
-			for (int jj = 1; jj < g_dglos.last_sprite_created; jj++)
+			for (int jj = 1; jj <= g_dglos.last_sprite_created; jj++)
 				if (g_sprite[jj].active) g_sprite[jj].disabled = false;
 			ugly_return(0);
 		}
@@ -11211,6 +11136,8 @@ LogMsg("%d scripts used", g_dglos.g_returnint);
 		}
 
 		//redink1 added so developers can change or see what tile is at any given position
+		//4/29/2024 changed as per this thread: https://www.dinknetwork.com/forum.cgi?MID=209752&Posts=16
+
 		if (compare(ev[1], (char*)"map_tile"))
 		{     
 			h = &h[strlen(ev[1])];
@@ -11225,9 +11152,9 @@ LogMsg("%d scripts used", g_dglos.g_returnint);
 					//max should be 5216.  And shouldn't it start at zero?
 					
 					
-					if (g_nlist[1] > 0 )
+					if (g_nlist[1] >= 0 )
 					{
-						if (g_nlist[1] <= 5216)
+						if (g_nlist[1] < 5248)
 						{
 							g_dglos.g_smallMap.t[g_nlist[0] - 1].num = g_nlist[1];
 						}
@@ -11701,7 +11628,7 @@ void init_scripts(void)
 			if (locate(k,"main"))
 			{
 #ifdef _DEBUG
-				//LogMsg("Screendraw: running main of script %s..", g_scriptInstance[k]->name);
+				LogMsg("Screendraw: running main of script %s for script instance %d (owner sprite: %d) ..", g_scriptInstance[k]->name, k, g_scriptInstance[k]->sprite);
 #endif
 				run_script(k);
 			}
@@ -11875,7 +11802,7 @@ void text_draw(int h)
 
 	uint32 rgbColor = MAKE_RGBA(g_dglos.font_colors[color].red, g_dglos.font_colors[color].green, g_dglos.font_colors[color].blue, 255);
 
-	uint32 bgColor = MAKE_RGBA(0,0,0,100);
+	uint32 bgColor = MAKE_RGBA(0,0,0,150);
 	
     rtRect rTemp(rcRect);
     
@@ -11883,7 +11810,8 @@ void text_draw(int h)
     if (g_sprite[h].owner == 1200)
     {
 		GetApp()->GetFont(FONT_SMALL)->DrawWrapped(rTemp, cr, false, false, rgbColor, g_dglo.m_fontSize, false, bgColor);
-    } else
+		g_globalBatcher.Flush();
+	} else
     {
 		
 		if (StripWhiteSpace(cr) == "")
@@ -11891,7 +11819,9 @@ void text_draw(int h)
 			//skip it, it's just blank, otherwise it will draw the bg which looks dumb
 		} else
 		{
-			GetApp()->GetFont(FONT_SMALL)->DrawWrapped(rTemp, cr, true, false, rgbColor,  g_dglo.m_fontSize, false , bgColor);
+ 			GetApp()->GetFont(FONT_SMALL)->DrawWrapped(rTemp, cr, true, false, rgbColor,  g_dglo.m_fontSize, false , bgColor);
+		
+			g_globalBatcher.Flush();
 		}
 	}
 
@@ -13626,7 +13556,136 @@ void CheckTransitionSurface()
 	}
 }
 
-void UpdateFrameWithoutTransitionAndThinking()
+void BlitInterfaceFullDraw(bool bDebug = false)
+{
+	
+	BlitGUIOverlay();
+
+	//Transition UpdateFrameWithoutTransitionAndThinking()
+
+	int h = 0;
+
+	for (int j = 1; j < C_MAX_SPRITES_AT_ONCE; j++)
+	{
+		if (g_dglos.plane_process)
+			h = g_spriteRank[j]; else h = j;
+		if (bDebug)
+			LogMsg( "Ok, rank %d is %d", j,h);
+
+		if (h > 0)
+		{
+			ThinkSprite(h, g_bTransitionActive || g_dglos.g_stopEntireGame == 1, bDebug);
+		}
+	}
+
+}
+
+//this wastefully blits all sprites and the GUI three times, but it's the only way I could get pixel perfect transitions to work.  If I did it a more effecient way
+//(blitting from g_transitionSurf) it would not perfectly match except at exact resolutions like 1024X768 etc.  NO GOOD! 
+//However, if we're ever on a platform where glScissor is not supported, we're screwed
+
+
+rtRectf ConvertDinkRectToNative(rtRectf r)
+{
+	CL_Vec2f upperLeft = DinkToNativeCoords(CL_Vec2f(r.left, r.top));
+	CL_Vec2f lowerRight = DinkToNativeCoords(CL_Vec2f(r.right, r.bottom));
+	rtRectf rOut(upperLeft.x, upperLeft.y, lowerRight.x, lowerRight.y);
+	return rOut;
+}
+
+CL_Vec2f DinkToPrimaryNativeCoords(CL_Vec2f vPos)
+{
+	CL_Vec2f r = vPos;
+	double xmod = (double(g_dglo.m_orthoRenderRect.GetWidth()) / GetPrimaryGLX());
+	double ymod = (double(g_dglo.m_orthoRenderRect.GetHeight()) / GetPrimaryGLY());
+	r += g_dglo.m_centeringOffset;
+	r.x *= g_dglo.m_aspectRatioModX;
+	r.y *= g_dglo.m_aspectRatioModY;
+
+	r.x /= xmod;
+	r.y /= ymod;
+	return r;
+}
+
+void UpdateInterfaceWithoutTransitionAndThinking() //transition
+{
+
+	if (g_dglo.m_curView == DinkGlobals::VIEW_ZOOMED)
+	{
+		return;
+	}
+
+	glPushMatrix();
+	SetOrthoRenderSize((float)g_dglo.m_orthoRenderRect.right, (float)g_dglo.m_orthoRenderRect.GetHeight(), (float)-g_dglo.m_orthoRenderRect.left, (float)-g_dglo.m_orthoRenderRect.top);
+	GetBaseApp()->SetGameTickPause(true); //don't let logic actually happen in here
+
+
+	glEnable(GL_SCISSOR_TEST);
+	
+	//calculate the x offset for the native GL surface, normally we don't need this but for our glScissor stuff we do, it ignores the view matrix
+
+	//Also, some weirdness with ConvertFakeScreenRectToReal that I worked around, uhh... this whole function sucks ballz and will be horrible to debug, sorry
+
+	rtRect clipRectFullScreen(0, 0, 1024, 768);
+	rtRectf nativeClipRectFullScreen = ConvertFakeScreenRectToReal(clipRectFullScreen, g_dglo.m_aspectRatioModX, g_dglo.m_aspectRatioModY);
+	float rawGLOffsetX = (GetPrimaryGLX() - nativeClipRectFullScreen.GetWidth()) / 2;
+	float rawGLOffsetY = (GetPrimaryGLY() - nativeClipRectFullScreen.GetHeight()) / 2;
+	float percentOfGameAreaThatIsSideBar = 0.032f;
+	float fullscreenWidthX = nativeClipRectFullScreen.GetWidth();
+	float fullscreenWidthY = nativeClipRectFullScreen.GetHeight();
+	float widthOfBar = (percentOfGameAreaThatIsSideBar * fullscreenWidthX);
+
+	//left bar
+	rtRect clipRect(0, 0, g_dglo.m_nativeGameArea.left, 768);
+	rtRectf nativeClipRectLeft = ConvertFakeScreenRectToReal(clipRect);
+	nativeClipRectLeft.left += rawGLOffsetX;
+	nativeClipRectLeft.right = rawGLOffsetX + widthOfBar;
+	nativeClipRectLeft.top += rawGLOffsetY;
+	nativeClipRectLeft.bottom += rawGLOffsetY;
+
+	glScissor(nativeClipRectLeft.left, nativeClipRectLeft.top, nativeClipRectLeft.GetWidth(), nativeClipRectLeft.GetHeight());
+	
+	BlitInterfaceFullDraw(false);
+
+	{
+		//right bar
+		rtRect clipRect(g_dglo.m_nativeGameArea.right, 0, 1024, 768);
+		rtRectf nativeClipRect = ConvertFakeScreenRectToReal(clipRect, g_dglo.m_aspectRatioModX, g_dglo.m_aspectRatioModY);
+			
+		nativeClipRect.right = rawGLOffsetX + fullscreenWidthX;
+		nativeClipRect.left = ((rawGLOffsetX + fullscreenWidthX) - widthOfBar) + 2;
+		nativeClipRect.top += rawGLOffsetY;
+		nativeClipRect.bottom += rawGLOffsetY;
+
+		nativeClipRect.right += 5; //it's ok to go a little extra
+
+		glScissor(nativeClipRect.left, nativeClipRect.top, nativeClipRect.GetWidth(), nativeClipRect.GetHeight());
+		BlitInterfaceFullDraw();
+	}
+
+	//bottom bar
+	{
+		rtRect clipRect(0, g_dglo.m_nativeGameArea.bottom, 1024, 768);
+		rtRectf nativeClipRect = ConvertFakeScreenRectToReal(clipRect);
+
+		nativeClipRect.left += rawGLOffsetX;
+		nativeClipRect.right += rawGLOffsetX;
+	
+		glScissor(rawGLOffsetX, rawGLOffsetY, nativeClipRect.GetWidth(), fullscreenWidthY * 0.166f);
+		BlitInterfaceFullDraw();
+	}
+
+	GetBaseApp()->SetGameTickPause(false);
+
+	
+	glDisable(GL_SCISSOR_TEST);
+
+	glPopMatrix();
+	RemoveOrthoRenderSize();
+
+}
+
+void UpdateFrameWithoutTransitionAndThinking(bool bForceTimeToPass = false)
 {
 	SetOrthoRenderSize(g_dglo.m_orthoRenderRect.right, g_dglo.m_orthoRenderRect.GetHeight(), -g_dglo.m_orthoRenderRect.left, -g_dglo.m_orthoRenderRect.top);
 
@@ -13644,9 +13703,12 @@ void UpdateFrameWithoutTransitionAndThinking()
 	lpDDSBack->BltFast( 0, 0, lpDDSBackGround, &rcRect, DDBLTFAST_NOCOLORKEY);
 	g_dglo.m_bgSpriteMan.Render(lpDDSBack); //blit sprites that have been shoved into the bg, too slow to actually add them, so we fake it until the screen is rebuilt
 	
-	
 	//render sprites
+	
+	BlitGUIOverlay();
 
+	//Transition UpdateFrameWithoutTransitionAndThinking()
+	
 	int h= 0;
 
 	for (int j = 1; j < C_MAX_SPRITES_AT_ONCE; j++)
@@ -13657,7 +13719,7 @@ void UpdateFrameWithoutTransitionAndThinking()
 
 		if (h > 0)
 		{
-			ThinkSprite(h, g_bTransitionActive || g_dglos.g_stopEntireGame == 1);
+			ThinkSprite(h, (g_bTransitionActive || g_dglos.g_stopEntireGame == 1));
 		}
 	}    
 	
@@ -13666,7 +13728,6 @@ void UpdateFrameWithoutTransitionAndThinking()
 	RemoveOrthoRenderSize();
 
 }
-
 
 void StartScreenScrollTransition(int direction)
 {
@@ -13702,6 +13763,14 @@ void StartScreenScrollTransition(int direction)
 	else
 	{
 		g_transitionSurf.CopyFromScreen();
+		
+		/*
+		//create a screenshot of what we just copied for debugging
+		SoftSurface s;
+		g_transitionSurf.CreateSoftSurfaceFromSurface(s);
+		s.WriteBMPOut("crap.bmp");
+		*/
+
 	}
 
 	ApplyAspectRatioGLMatrix();
@@ -13760,6 +13829,15 @@ void ProcessTransition(void)
 
 	float inverseProg = 1.0f - g_dglo.m_transitionProgress;
 	
+#ifdef _DEBUG
+	if (g_dglo.m_transitionProgress >= 0.5 && g_dglo.m_transitionProgress < 0.6)
+	{
+	//	LogMsg("More than halfway through transition.  Sprite 6 active: %d", g_sprite[6].active);
+	}
+
+#endif
+
+
 	if (g_dglo.m_transitionProgress >= 1)
 	{
 		g_bTransitionActive = false;
@@ -13768,27 +13846,19 @@ void ProcessTransition(void)
 		g_dglo.m_transitionTimer = 0;
 	}
 
-	//float offsetX = 0.5f;
-
 	float fTemp = inverseProg;
-	//fTemp = 1.0f;
-	glTranslatef((g_dglo.m_transitionOffset.x*fTemp),(g_dglo.m_transitionOffset.y*fTemp), 0);
-	//glScalef(G_TRANSITION_SCALE_TRICK,G_TRANSITION_SCALE_TRICK,1);
-
 	
+	glTranslatef((g_dglo.m_transitionOffset.x*fTemp),(g_dglo.m_transitionOffset.y*fTemp), 0);
 }
 
 void EndProcessTransition()
 {
 	if (!g_bTransitionActive) return;
 	float inverseProg = 1.0f - g_dglo.m_transitionProgress;
-	//glScalef(1/G_TRANSITION_SCALE_TRICK,1/G_TRANSITION_SCALE_TRICK,1);
-
 	glTranslatef((-g_dglo.m_transitionOffset.x*inverseProg), (- ( (g_dglo.m_transitionOffset.y*inverseProg))), 0);
-
 };
 
-void BlitSecondTransitionScreen()
+void BlitSecondTransitionScreen() //TRANSITION
 {
 
 	if (g_bTransitionActive)
@@ -13839,6 +13909,7 @@ void BlitSecondTransitionScreen()
 			g_onePixelSurf.FillColor(glColorBytes(255, 255, 255, 255));
 		}
 
+	
 		if (g_dglo.GetActiveView() != DinkGlobals::VIEW_ZOOMED)
 		{
 			static uint32 blackBarsColor = MAKE_RGBA(0, 0, 0, 255);
@@ -13852,9 +13923,65 @@ void BlitSecondTransitionScreen()
 			g_onePixelSurf.BlitScaled(0, g_dglo.m_nativeGameArea.bottom, CL_Vec2f(5000, 5000), ALIGNMENT_UPPER_CENTER, blackBarsColor);
 
 		}
-	
+		
 		glPopMatrix( );
 
+		/*
+
+		if (g_dglo.GetActiveView() != DinkGlobals::VIEW_ZOOMED)
+		{
+			//Oy, let's also blit the GUI pieces from our frozen surface
+
+			glMatrixMode(GL_MODELVIEW);
+			glPushMatrix();
+			
+
+			dstOffset = rtRectf(0, 0, 0, 0);
+			srcOffset = rtRectf(0, 0, 0, 0);
+
+			
+			double offsetX = g_dglo.m_centeringOffset.x * (1.0f - ((double)GetFakePrimaryScreenSizeX() / (double)C_DINK_SCREENSIZE_X));
+			double offsetY = g_dglo.m_centeringOffset.y * (1.0f - ((double)GetFakePrimaryScreenSizeY() / (double)C_DINK_SCREENSIZE_Y));
+			
+			//force offsetX and offsetY to be a whole number
+
+			
+			glTranslatef(-offsetX, -offsetY, 0);
+
+
+
+			
+
+			//left bar
+			rtRectf dstRect = rtRect(0, 0, g_dglo.m_nativeGameArea.left, GetScreenSizeYf());
+			rtRectf srcRect = ConvertFakeScreenRectToReal(dstRect);
+			g_transitionSurf.BlitEx(dstRect + dstOffset, srcRect + srcOffset);
+
+			//right bar
+			dstRect = rtRect(g_dglo.m_nativeGameArea.right, 0, GetScreenSizeXf(), GetScreenSizeYf());
+			srcRect = ConvertFakeScreenRectToReal(dstRect);
+			g_transitionSurf.BlitEx(dstRect + dstOffset, srcRect + srcOffset);
+
+			
+			//bottom bar
+			dstRect = rtRect(0, g_dglo.m_nativeGameArea.bottom,  GetScreenSizeXf(), GetScreenSizeYf());
+			srcRect = ConvertFakeScreenRectToReal(dstRect);
+			g_transitionSurf.BlitEx(dstRect + dstOffset, srcRect + srcOffset);
+		
+		
+
+#ifdef _DEBUG
+			LogMsg("Final Trans Src rect: %s", PrintRect(srcRect).c_str());
+			LogMsg("Trans Dest rect: %s", PrintRect(dstRect).c_str());
+			LogMsg("Trans surf size: %s", PrintRect(g_transitionSurf.GetRectf()).c_str());
+#endif
+		
+
+
+			glPopMatrix();
+		
+		}
+			*/
 	}
 
 	
@@ -13978,6 +14105,8 @@ void did_player_cross_screen(bool bCheckWithoutMoving, int playerID)
     }
 
 b1end:;
+
+	
 }
 
 bool run_through_tag_list_talk(int h)
@@ -14423,7 +14552,7 @@ bool DinkSkipDialogLine()
 	{
 
 		//Msg("Checking %d, brain %d, script %d, my freeze is %d",jj, spr[jj].brain, spr[jj].script, spr[h].freeze);
-		if (g_sprite[jj].brain == 8) if (g_sprite[jj].script == g_dglos.g_playerInfo.last_talk)
+		if (g_sprite[jj].active && g_sprite[jj].brain == 8) if (g_sprite[jj].script == g_dglos.g_playerInfo.last_talk)
 		{
 			//this sprite owns its freeze
 
@@ -15957,8 +16086,8 @@ CL_Vec2f NativeToDinkCoords(CL_Vec2f vPos)
 		vPos.y * (g_dglo.m_orthoRenderRect.GetHeight() / GetScreenSizeYf())
 	);
 
-	r.x /= g_dglo.m_aspectRatioModX;
-	r.y /= g_dglo.m_aspectRatioModY;
+	r.x /= (float)g_dglo.m_aspectRatioModX;
+	r.y /= (float)g_dglo.m_aspectRatioModY;
 	r -= g_dglo.m_centeringOffset;
 	return r;
 }
@@ -15967,8 +16096,8 @@ CL_Vec2f NativeToDinkCoords(CL_Vec2f vPos)
 CL_Vec2f DinkToNativeCoords(CL_Vec2f vPos)
 {
 	CL_Vec2f r = vPos;
-	float xmod = (float(g_dglo.m_orthoRenderRect.GetWidth()) / GetScreenSizeXf());
-	float ymod = (float(g_dglo.m_orthoRenderRect.GetHeight()) / GetScreenSizeYf());
+	double xmod = (double(g_dglo.m_orthoRenderRect.GetWidth()) / GetScreenSizeXf());
+	double ymod = (double(g_dglo.m_orthoRenderRect.GetHeight()) / GetScreenSizeYf());
 	r += g_dglo.m_centeringOffset;
 	r.x *= g_dglo.m_aspectRatioModX;
 	r.y *= g_dglo.m_aspectRatioModY;
@@ -16572,7 +16701,7 @@ void drawscreenlock( void )
 }    
 
 
-void ThinkSprite(int h, bool get_frame)
+void ThinkSprite(int h, bool get_frame, bool bDebug)
 {
 
 	if (g_sprite[h].active)
@@ -16887,9 +17016,15 @@ animate:
 past: 
 
 		check_sprite_status(h);
+		
+		if (bDebug)
+		{
+
+			LogMsg("Drawping sprite %d, brain %d", h, g_sprite[h].brain);
+			
+		}
 		draw_sprite_game(lpDDSBack,h);
-
-
+		
 	}
 }
 
@@ -16968,8 +17103,63 @@ void DrawDinkText(int max_s, int32 *rank)
 
 }
 
+
+int DepthSortSprites()
+{
+	int highest_sprite;
+
+	bool bs[C_MAX_SPRITES_AT_ONCE];
+	int max_s = 0;
+	
+	if (g_dglos.plane_process)
+	{
+		memset(&bs, 0, sizeof(bs));
+		max_s = g_dglos.last_sprite_created;
+		memset(&g_spriteRank, 0, sizeof(g_spriteRank));
+
+		int height;
+
+		for (int r1 = 1; r1 < max_s + 1; r1++)
+		{
+			highest_sprite = 22024; //more than it could ever be
+
+			g_spriteRank[r1] = 0;
+
+			for (int h1 = 1; h1 < max_s + 1; h1++)
+			{
+				if (g_sprite[h1].active) if (g_sprite[h1].disabled == false)
+				{
+					if (bs[h1] == false)
+					{
+						//LogMsg( "Ok,  %d is %d", h1, g_sprite[h1].y );
+						if (g_sprite[h1].que != 0) height = g_sprite[h1].que; else height = g_sprite[h1].y;
+						if (height < highest_sprite)
+						{
+							highest_sprite = height;
+							g_spriteRank[r1] = h1;
+						}
+					}
+				}
+			}
+
+			if (g_spriteRank[r1] != 0)
+				bs[g_spriteRank[r1]] = true;
+		}
+
+	}
+	else
+	{
+		//not processing planes
+		max_s = C_MAX_SPRITES_AT_ONCE;
+	}
+
+	return max_s;
+}
+
 void updateFrame()
 {
+
+	int max_s = 0; //can't move it lower, the gotos fail on html5 compiles
 
 	if (!lpDDSBack || g_dglo.m_curLoadState != FINISHED_LOADING) return;
 	bool bRenderDinkText = true;
@@ -16989,14 +17179,12 @@ void updateFrame()
 #endif
 
 
-	byte state[256];
+	uint8 state[256];
 	rtRect32 rcRect;
 	bool bCaptureScreen = false;
 	int h, j;
 
-	bool bs[C_MAX_SPRITES_AT_ONCE];
-	int highest_sprite;
-
+	
 	g_abort_this_flip = false;
 	
 	ProcessGraphicGarbageCollection();
@@ -17024,96 +17212,16 @@ void updateFrame()
 		}
 	}
 
-
-#ifdef _WIN32
-	static int LastWindowsTimer = 0;
-
-//if (!bSpeedUp)
-if (0)
-{
-
-//Sleep(50);
-
-	while (GetTickCount() <= LastWindowsTimer)
-	{
-		Sleep(0);
-	}
-
-}
-LastWindowsTimer = GetTickCount();
-#else
-
-	/*
-	static uint32 lastTick = 0;
-
-
-	if (!GetBaseApp()->GetGameTickPause())
-	{
-		while (GetSystemTimeTick()-lastTick < 33)
-		{
-
-		}
-	}
-
-	lastTick = GetSystemTimeTick();
-	 */
-#endif
-
-
-	//non-windows timer
-
+	//game timer
 
 	g_dglos.lastTickCount = g_dglos.g_dinkTick;
-	//g_dglos.g_dinkTick = GetBaseApp()->GetGameTick();
 	g_dglos.g_dinkTick += (1000.0f / 60.0f); //FPS lock at 60 fps
-	
-	/*
-	int fps_final = g_dglos.g_dinkTick - g_dglos.lastTickCount;
-
-	//redink1 changed to 12-12 from 10-15... maybe work better on faster computers?
-	if (fps_final < 12) fps_final = 12;
-	if (fps_final > 68) fps_final = 68;  
-
-	fps_final = 24; //force it
-
-	g_dglos.base_timing = fps_final / 3;
-	if (g_dglos.base_timing < 4) g_dglos.base_timing = 4;
-	
-	int junk3;
-
-	//redink1 added these changes to set Dink's speed correctly, even on fast machines.
-	
-
-	if (g_dglos.dinkspeed <= 0)
-		junk3 = 0;
-	else if (g_dglos.dinkspeed == 1)
-		junk3 = 12;
-	else if (g_dglos.dinkspeed == 2)
-		junk3 = 6;
-	else if (g_dglos.dinkspeed == 3)
-		junk3 = 3;
-	else
-		junk3 = 1;
-
-	junk3 *= (g_dglos.base_timing / 4);
-
-	g_sprite[1].speed = junk3;
-	*/
 
 	//assume we're locked at 60 fps
 	
 	g_dglos.base_timing = 7;
 	float junk3 = 1;
-	/*
-	if (g_dglos.dinkspeed <= 0)
-		junk3 = 0;
-	else if (g_dglos.dinkspeed == 1)
-		junk3 = 12;
-	else if (g_dglos.dinkspeed == 2)
-		junk3 = 6;
-	else if (g_dglos.dinkspeed == 3)
-		junk3 = 3;
-		*/
+	
 	if (g_dglos.dinkspeed <= 0)
 		junk3 = 0;
 	else if (g_dglos.dinkspeed == 1)
@@ -17123,26 +17231,12 @@ LastWindowsTimer = GetTickCount();
 	else if (g_dglos.dinkspeed == 3)
 		junk3 = 3;
 
-	//g_sprite[1].speed = (g_dglos.base_timing / 4);
-	//g_sprite[1].speed = 5;
 	bool bSpeedUp = false;
 	g_sprite[1].speed = (int)junk3*1.0f;
 	if (DinkGetSpeedUpMode())
 	{
 		bSpeedUp = true;
 	}
-
-	if (bSpeedUp)
-	{
-
-		/*
-		if (!GetApp()->GetGameTickPause())
-		{
-			GetApp()->SetGameTick(GetApp()->GetGameTick() + GetApp()->GetDeltaTick() * 5);
-		}
-		*/
-	}
-
 
 	if (g_dglos.g_bShowingBitmap.active)
 	{
@@ -17156,7 +17250,6 @@ LastWindowsTimer = GetTickCount();
 
 	g_dglos.mbase_count++;
 
-
 	
 	if (g_dglos.g_dinkTick > g_dglos.g_DinkUpdateTimerMS+100)
 	{
@@ -17166,17 +17259,10 @@ LastWindowsTimer = GetTickCount();
 		if (g_dglos.g_bowStatus.active) g_dglos.g_bowStatus.hitme = true;
 		
 		
-		
 		if (*pupdate_status == 1) update_status_all();
 
 		update_sound();
-	
-		//TODO Animated tiles
-		//if (IsDesktop())
-		{
-			//TODO:  Maybe mobile can handle this now?
-				process_animated_tiles();
-		}
+	    process_animated_tiles();
 	}
 
 
@@ -17212,48 +17298,9 @@ LastWindowsTimer = GetTickCount();
 	{
 		down_cycle();
 	}
+	
+	max_s = DepthSortSprites();
 
-	int max_s;
-
-	if (g_dglos.plane_process)
-	{
-		memset(&bs,0,sizeof(bs));
-		max_s = g_dglos.last_sprite_created;
-
-		int height;
-
-		for (int r1 = 1; r1 < max_s+1; r1++)
-		{
-			highest_sprite = 22024; //more than it could ever be
-
-			g_spriteRank[r1] = 0;
-
-			for (int h1 = 1; h1 < max_s+1; h1++)
-			{
-				if (g_sprite[h1].active) if (g_sprite[h1].disabled == false)
-				{ 
-					if (bs[h1] == false)
-					{
-						//Msg( "Ok,  %d is %d", h1,(spr[h1].y + k[spr[h1].pic].yoffset) );
-						if (g_sprite[h1].que != 0) height = g_sprite[h1].que; else height = g_sprite[h1].y;
-						if ( height < highest_sprite )
-						{
-							highest_sprite = height;
-							g_spriteRank[r1] = h1;
-						}
-					}
-				}
-			}
-
-			if (g_spriteRank[r1] != 0)  
-				bs[g_spriteRank[r1]] = true;
-		}
-
-	} else
-	{
-		//not processing planes
-		max_s = C_MAX_SPRITES_AT_ONCE;
-	}
 
 	rcRect.left = 0;
 	rcRect.top = 0;
@@ -17279,6 +17326,8 @@ LastWindowsTimer = GetTickCount();
 		BlitGUIOverlay();
 	}
 
+	
+
 	for ( j = 1; j < max_s+1; j++)
 	{
 		if (g_dglos.plane_process)
@@ -17289,8 +17338,9 @@ LastWindowsTimer = GetTickCount();
 		{
 			ThinkSprite(h, g_bTransitionActive || g_dglos.g_stopEntireGame == 1);
 		}
-	}                               
+	}          
 	
+
 	EndProcessTransition(); 
 
 	
@@ -17351,6 +17401,9 @@ LastWindowsTimer = GetTickCount();
 		drawscreenlock();
 	}
 	
+	if (bRenderDinkText)
+		DrawDinkText(max_s, g_spriteRank);
+
 	if (!GetBaseApp()->GetGameTickPause())
 	{
 		if (g_dglos.g_talkInfo.active) process_talk();
@@ -17369,7 +17422,6 @@ flip:
 		} else
 		{
 			DrawFilledRect(g_dglo.m_orthoRenderRect, MAKE_RGBA(0,0,0,g_dinkFadeAlpha* 255));
-
 		}
 
 		//g_dglo.m_gameArea.bottom--;
@@ -17381,9 +17433,6 @@ flip:
 		flip_it(); 
 	}
 
-	if (bRenderDinkText)
-		DrawDinkText(max_s, g_spriteRank);
-
 	RemoveOrthoRenderSize();
 	if (turn_on_plane) g_dglos.plane_process = true;
 
@@ -17391,9 +17440,19 @@ flip:
 		
 	if (g_bTransitionActive)	
 	{
-		SetOrthoRenderSize(C_DINK_SCREENSIZE_X, g_dglo.m_orthoRenderRect.GetHeight(), 0, -g_dglo.m_orthoRenderRect.top);
-		BlitGUIOverlay();
-		RemoveOrthoRenderSize();
+		//SetOrthoRenderSize(C_DINK_SCREENSIZE_X, g_dglo.m_orthoRenderRect.GetHeight(), 0, -g_dglo.m_orthoRenderRect.top);
+		
+		//instead of blitting the real GUI which rebuilds it, let's blit our saved version, this way it won't change during transitions (added for Robj to match other dink versions)
+		//TRANSITION
+		//BlitSavedGUIOverlay();
+		//BlitGUIOverlay();
+	
+		//RemoveOrthoRenderSize();
+
+	
+		UpdateInterfaceWithoutTransitionAndThinking();
+
+
 	}
 	
 	if (bCaptureScreen)
@@ -17406,6 +17465,8 @@ flip:
 	{
 		 UpdateControlsGUIIfNeeded();
 	}
+
+	
 
 } 
 
@@ -17551,6 +17612,13 @@ void SetDefaultVars(bool bFullClear)
 	g_dglos.bKeepReturnInt = false;
 	g_dglos.process_count = 0;
 	
+	//fix audio to be normal again
+	
+	g_dglos.m_hasMusicModApplied = 0;
+	g_dglos.m_musicModVolume = 0;
+
+	GetAudioManager()->SetMusicVol(GetApp()->GetVar("music_vol")->GetFloat());
+    
 
 	if (bFullClear)
 	{
@@ -17986,7 +18054,7 @@ void DinkGlobals::SetView( eView view )
 		float aspect = (float(C_DINK_SCREENSIZE_X)/GetScreenSizeXf());
 		float aspectY = (float(C_DINK_SCREENSIZE_Y)/GetScreenSizeYf());
 
-		g_dglo.m_nativeGameArea = rtRectf(float(g_dglo.m_gameArea.left)/ aspect,0,float(g_dglo.m_gameArea.right)/aspect,float(g_dglo.m_gameArea.bottom)/aspectY);
+		g_dglo.m_nativeGameArea = rtRectf(double(g_dglo.m_gameArea.left)/ aspect,0,double(g_dglo.m_gameArea.right)/aspect,double(g_dglo.m_gameArea.bottom)/aspectY);
 		g_dglo.m_orthoRenderRect = rtRect32 (0, 0, 640, 480);
 		RecomputeAspectRatio();
 
@@ -18245,7 +18313,7 @@ bool SaveHeader(FILE *fp)
 	return true;
 }
 
-bool LoadHeader(FILE *fp)
+bool LoadHeader(FILE *fp, string DMODPathOrBlank)
 {
 	float version;
 	LoadFromFile(version, fp);
@@ -18255,10 +18323,26 @@ bool LoadHeader(FILE *fp)
 		return false;
 	}
 
+	
+	
 	string tempGameDir = g_dglo.m_dmodGameDir;
 
 	LoadFromFile(g_dglo.m_dmodGameDir, fp);
 	LoadFromFile(g_dglo.m_gameDir, fp);
+
+	if (!DMODPathOrBlank.empty())
+	{
+		if (DMODPathOrBlank != "dink/")
+		{
+			DMODPathOrBlank = GetPathFromString(DMODPathOrBlank);
+			//special case for if the DMOD directory changed after the savestate was made
+			if (!g_dglo.m_dmodGameDir.empty())
+			{
+				g_dglo.m_dmodGameDir = DMODPathOrBlank;
+			}
+		}
+
+	}
 
 	if (!g_dglo.m_dmodGameDir.empty())
 	{
@@ -18286,7 +18370,6 @@ bool SaveSoundState(FILE *fp)
 	{
 		g_dglo.m_lastMusicPath = "";
 	} 
-
 	
 	SaveToFile(g_dglo.m_lastMusicPath, fp);
 	if (g_dglo.m_lastMusicPath.empty())
@@ -18333,6 +18416,16 @@ bool LoadSoundState(FILE *fp)
 	
 	uint32 pos;
 	LoadFromFile(pos, fp);
+
+	if (g_dglos.m_hasMusicModApplied)
+	{
+		GetAudioManager()->SetMusicVol(GetApp()->GetVar("music_vol")->GetFloat() * g_dglos.m_musicModVolume);
+	} else
+	{
+		GetAudioManager()->SetMusicVol(GetApp()->GetVar("music_vol")->GetFloat());
+	}
+	
+
 
 	if (!g_dglo.m_lastMusicPath.empty())
 	{
@@ -18493,10 +18586,6 @@ bool SaveState(string const &path, bool bSyncSaves)
 
 	FILE *fp = fopen(path.c_str(), "wb");
 	
-	
-	//why unload crap when you're saving?!
-	//DinkUnloadUnusedGraphicsByUsageTime(0);
-
 	if (!fp)
 	{
 		LogMsg("Error saving state");
@@ -18536,7 +18625,7 @@ bool SaveState(string const &path, bool bSyncSaves)
 
 bool GetDMODDirFromState(string const &path, string &dmodDirOut)
 {
-	LogMsg("Loading %s", path.c_str());
+	LogMsg("Game dir is Loading %s", path.c_str());
 	FILE *fp = fopen(path.c_str(), "rb");
 
 	if (!fp)
@@ -18614,10 +18703,12 @@ bool LoadState(string const &path, bool bLoadPathsOnly)
 	kill_all_sounds();
 	kill_all_scripts_for_real();
 	ResetDinkTimers();
+
+	
 	g_dglo.m_bgSpriteMan.Clear();
 	g_dglo.UnSetViewOverride();
 
-	bool bOk = LoadHeader(fp);
+	bool bOk = LoadHeader(fp, path);
 
 
 	if (bOk)
@@ -18914,18 +19005,18 @@ void RecomputeAspectRatio()
 	}
 	else
 	{
-		float aspect_r = (float)GetPrimaryGLX() / (float)GetPrimaryGLY(); // aspect ratio
-		const float correctAspectRatio = (float)C_DINK_SCREENSIZE_X / (float)C_DINK_SCREENSIZE_Y;
+		double aspect_r = (double)GetPrimaryGLX() / (double)GetPrimaryGLY(); // aspect ratio
+		const double correctAspectRatio = (double)C_DINK_SCREENSIZE_X / (double)C_DINK_SCREENSIZE_Y;
 
 		/*
 		if (GetFakePrimaryScreenSizeX() != 0)
 		{
 		//more reliable way to get the aspect ratio
-		aspect_r=(float)GetFakePrimaryScreenSizeX()/(float)GetFakePrimaryScreenSizeY(); // aspect ratio
+		aspect_r=(double)GetFakePrimaryScreenSizeX()/(double)GetFakePrimaryScreenSizeY(); // aspect ratio
 		}
 		*/
 
-		float aspectChange = correctAspectRatio / aspect_r;
+		double aspectChange = correctAspectRatio / aspect_r;
 
 
 		if (aspectChange < 1.0f)
@@ -19020,10 +19111,18 @@ void DinkOnForeground()
 
 void WriteLastPathSaved(string dmodDir)
 {
+#ifdef _DEBUG
+	LogMsg("Writing Last saved path: %s", dmodDir.c_str());
+#endif
+
 	GetApp()->GetShared()->GetVar("last_saved_path")->Set(dmodDir);
 }
 
 string ReadLastPathSaved()
 {
+
+#ifdef _DEBUG
+	LogMsg("Reading Last saved path: %s", GetApp()->GetShared()->GetVar("last_saved_path")->GetString().c_str());
+#endif
 	return GetApp()->GetShared()->GetVar("last_saved_path")->GetString();
 }

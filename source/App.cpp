@@ -205,8 +205,8 @@ App::App()
 	m_bDidPostInit = false;
 	m_bHasDMODSupport = true;
 	//for mobiles
-	m_version = 1.99f;
-	m_versionString = "V1.99";
+	m_version = 2.06f;
+	m_versionString = "V2.06";
 	m_build = 1;
 	m_bCheatsEnabled = false;
 
@@ -301,7 +301,6 @@ bool App::Init()
 	InitUnhandledExceptionFilter();
 #endif
 
-
 	//GetBaseApp()->SetDisableSubPixelBlits(true);
 	SetDefaultButtonStyle(Button2DComponent::BUTTON_STYLE_CLICK_ON_TOUCH_RELEASE);
 	SetManualRotationMode(false);
@@ -310,6 +309,7 @@ bool App::Init()
 	int scaleToX = 1024;
 	int scaleToY = 768;
 
+	GetBaseApp()->GetConsole()->SetMaxLines(200);
 
 	switch (GetEmulatedPlatformID())
 	{
@@ -589,8 +589,8 @@ bool App::Init()
 
 #ifdef _DEBUG
 
-	GetApp()->SetCheatsEnabled(true);
-	g_script_debug_mode = true;
+//	GetApp()->SetCheatsEnabled(true);
+	//g_script_debug_mode = true;
 #endif
 	
 	if (GetEmulatedPlatformID() == PLATFORM_ID_WINDOWS || GetEmulatedPlatformID() == PLATFORM_ID_OSX || GetEmulatedPlatformID() == PLATFORM_ID_HTML5)
@@ -646,7 +646,9 @@ bool App::Init()
 				std::string("-dmodpath or --refdir <dir containing DMOD dirs> (Example:  dink.exe - game c:\\dmods)\n\n") +
 				std::string("-debug (turns on extra debug mode options for dmod authors, available from Dink HD menu as well)\n\n") +
 				std::string("-window (Forces windowed mode)\n\n") +
+				std::string("-skip (skips latest version check)\n\n") +
 				std::string("If a.dmod file is put in the Dink HD directory(where the.exe is) it will be automatically installed and then deleted\n");
+			    std::string("dink.exe <dmod url> will install a dmod directly from the net.\n");
 
 			MessageBox(GetForegroundWindow(), s.c_str(), "Command line options", MB_ICONSTOP);
 
@@ -658,6 +660,11 @@ bool App::Init()
 		fullscreen = false;
 		GetApp()->GetVar("fullscreen")->Set(uint32(0));
 	}
+	if (DoesCommandLineParmExist("-skip"))
+	{
+		SetSkipMode(true);
+	}
+
 
 	if (DoesCommandLineParmExist("-debug") )
 	{
@@ -851,6 +858,7 @@ void App::Update()
 		AddKeyBinding(pComp, "Quicksave", VIRTUAL_KEY_F5, VIRTUAL_KEY_F5);
 		AddKeyBinding(pComp, "Quickload", VIRTUAL_KEY_F9, VIRTUAL_KEY_F9);
 		AddKeyBinding(pComp, "DinkHDMenu", VIRTUAL_KEY_F1, VIRTUAL_KEY_F1);
+		AddKeyBinding(pComp, "ToggleLog", VIRTUAL_KEY_BACKTICK, VIRTUAL_KEY_BACKTICK, false);
 
 		if (GetVar("check_icade")->GetUINT32() == 0)
 		{
@@ -1045,6 +1053,12 @@ bool App::OnPreInitVideo()
 	//don't do anything, we get the size from the browser
 #endif
 
+
+#ifdef _DEBUG
+
+	//SetEmulatedPlatformID(PLATFORM_ID_IOS);
+#endif
+
 //#if !defined(_DEBUG) && defined(WINAPI)
 #ifdef WINAPI
 
@@ -1100,14 +1114,14 @@ bool App::OnPreInitVideo()
 const char * GetBundlePrefix()
 {
 
-	char * bundlePrefix = "com.rtsoft.";
+	const char * bundlePrefix = "com.rtsoft.";
 	return bundlePrefix;
 }
 
 //applicable to Palm WebOS builds only
 const char * GetBundleName()
 {
-	char * bundleName = "rtdink";
+	const char * bundleName = "rtdink";
 	return bundleName;
 }
 
@@ -1185,7 +1199,7 @@ void ImportNormalSaveSlot(string fileName, string outputFileName)
 
 	//fix outputfilename if it's wrong
 	StripWhiteSpace(outputFileName);
-	int index = outputFileName.find_first_of('(');
+	int index = (int)outputFileName.find_first_of('(');
 	if (index != string::npos)
 	{
 		//it probably looks like "save2 (2).dat" due to chrome renaming if it existed, fix it

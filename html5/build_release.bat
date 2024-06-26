@@ -65,8 +65,7 @@ set SRC= %SHARED%\PlatformSetup.cpp  %SHARED%\html5\HTML5Main.cpp %SHARED%\html5
 %SHARED%\Manager\GameTimer.cpp %SHARED%\Manager\MessageManager.cpp %SHARED%\Manager\ResourceManager.cpp %SHARED%\Manager\VariantDB.cpp %SHARED%\Math\rtPlane.cpp %SHARED%\Math\WeightRand.cpp ^
 %SHARED%\Math\rtRect.cpp %SHARED%\Renderer\RenderBatcher.cpp %SHARED%\Renderer\SoftSurface.cpp %SHARED%\Renderer\Surface.cpp %SHARED%\Renderer\SurfaceAnim.cpp ^
 %SHARED%\util\CRandom.cpp %SHARED%\util\GLESUtils.cpp %SHARED%\util\MathUtils.cpp %SHARED%\util\MiscUtils.cpp %SHARED%\util\RenderUtils.cpp %SHARED%\util\ResourceUtils.cpp ^
-%SHARED%\util\Variant.cpp %SHARED%\util\boost\libs\signals\src\connection.cpp %SHARED%\util\boost\libs\signals\src\named_slot_map.cpp %SHARED%\util\boost\libs\signals\src\signal_base.cpp ^
-%SHARED%\util\boost\libs\signals\src\slot.cpp %SHARED%\util\boost\libs\signals\src\trackable.cpp %SHARED%\BaseApp.cpp %SHARED%\util\TextScanner.cpp %SHARED%\Entity\EntityUtils.cpp ^
+%SHARED%\util\Variant.cpp %SHARED%\BaseApp.cpp %SHARED%\util\TextScanner.cpp %SHARED%\Entity\EntityUtils.cpp ^
 %SHARED%\Network\NetSocket.cpp %SHARED%\Network\NetUtils.cpp %SHARED%\Audio\AudioManagerFMODStudio.cpp %SHARED%\FileSystem\StreamingInstance.cpp %SHARED%\FileSystem\FileSystem.cpp ^
 %SHARED%\FileSystem\StreamingInstanceZip.cpp %SHARED%\FileSystem\StreamingInstanceFile.cpp %SHARED%\FileSystem\FileSystemZip.cpp %SHARED%\util\unzip\unzip.c %SHARED%\util\unzip\ioapi.c %SHARED%\util\PrimeSearch.cpp ^
 %SHARED%\Manager\AdManager.cpp %SHARED%/Renderer/JPGSurfaceLoader.cpp %SHARED%\util\archive\TarHandler.cpp %SHARED%\Gamepad\GamepadManager.cpp ^
@@ -79,7 +78,7 @@ set COMPONENT_SRC=%COMPPATH%\Button2DComponent.cpp %COMPPATH%\FilterInputCompone
 %COMPPATH%\RectRenderComponent.cpp %COMPPATH%\ScrollBarRenderComponent.cpp %COMPPATH%\ScrollComponent.cpp %COMPPATH%\TapSequenceDetectComponent.cpp %COMPPATH%\TextBoxRenderComponent.cpp ^
 %COMPPATH%\TextRenderComponent.cpp %COMPPATH%\TouchStripComponent.cpp %COMPPATH%\TrailRenderComponent.cpp %COMPPATH%\TyperComponent.cpp %COMPPATH%\UnderlineRenderComponent.cpp ^
 %COMPPATH%\TouchHandlerComponent.cpp %COMPPATH%\CustomInputComponent.cpp %COMPPATH%\SelectButtonWithCustomInputComponent.cpp %COMPPATH%\SliderComponent.cpp %COMPPATH%\EmitVirtualKeyComponent.cpp ^
-%COMPPATH%\RenderClipComponent.cpp %COMPPATH%\ArcadeInputComponent.cpp %COMPPATH%\UnpackArchiveComponent.cpp
+%COMPPATH%\RenderClipComponent.cpp %COMPPATH%\ArcadeInputComponent.cpp %COMPPATH%\UnpackArchiveComponent.cpp %COMPPATH%\LogDisplayComponent.cpp %COMPPATH%\TouchDragComponent.cpp %COMPPATH%\RenderScissorComponent.cpp
 
 
 REM **************************************** ZLIB SOURCE CODE FILES

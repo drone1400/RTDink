@@ -73,11 +73,11 @@ struct BackgroundSprite
 class BackgroundSpriteManager
 {
 public:
-
+	 
 	void Clear();
 	void Add(int spriteID);
 	void Render(LPDIRECTDRAWSURFACE lpdest);
-	int GetCount() {return m_sprites.size();}
+	int GetCount() {return (int)m_sprites.size();}
 private:
 
 	deque<BackgroundSprite> m_sprites;
@@ -152,8 +152,8 @@ public:
 
 	BackgroundSpriteManager m_bgSpriteMan;
 	bool m_bUsingDinkPak;
-	float m_aspectRatioModX;
-	float m_aspectRatioModY;
+	double m_aspectRatioModX;
+	double m_aspectRatioModY;
 	CL_Vec3f m_centeringOffset;
 	CL_Mat4f m_dink_matrix;
 	CL_Mat4f m_dink_matrix_inverted;
@@ -196,24 +196,24 @@ struct sequence
 	int32 delay[C_MAX_SPRITE_FRAMES];
 	unsigned char special[C_MAX_SPRITE_FRAMES];
 
-	byte active;
+	uint8 active;
 	short m_xoffset, m_yoffset;
 	rtRect32 m_hardbox;
 	eTransparencyType m_transType;
-	byte m_bLeftAlign;
+	uint8 m_bLeftAlign;
 	int32 m_speed;
 	char m_fileName[C_SPRITE_MAX_FILENAME_SIZE];
 	short x,y;
 	short s;
-	byte last;
-	byte m_spaceAllowed;
-	byte m_bFrameSetUsed;
-	byte m_bIsAnim;
-	byte m_bDidFileScan;
+	uint8 last;
+	uint8 m_spaceAllowed;
+	uint8 m_bFrameSetUsed;
+	uint8 m_bIsAnim;
+	uint8 m_bDidFileScan;
 	
 };
 
-const int32 C_DINK_VERSION = 112;
+const int32 C_DINK_VERSION = 113;
 const int32 num_soundbanks = 20;
 const int32 max_idata = 1000; 
 const int32 max_sounds = 100;
@@ -347,7 +347,8 @@ struct player_info
 	player_info_tile tile[42];
 	global_function func[100];
 	uint32 m_gameTime;
-	char  cbuff[746];
+	int32 attack_wait;
+	char  cbuff[742];
 };
 
 struct attackinfo_struct
@@ -509,7 +510,7 @@ struct seth_joy
 
 struct mega_y
 {
-	byte y[401];
+	uint8 y[401];
 };
 
 //struct for hardness map
@@ -524,7 +525,7 @@ struct hit_map
 #define C_DINK_TILE_SIZE_IN_PIXELS 50
 struct block_y
 {
-	byte y[C_DINK_TILE_SIZE_IN_PIXELS+1]; //the +1 is because I did everything 1 index based.  Yeah, I was an idiot.
+	uint8 y[C_DINK_TILE_SIZE_IN_PIXELS+1]; //the +1 is because I did everything 1 index based.  Yeah, I was an idiot.
 };
 
 struct ts_block
@@ -557,7 +558,7 @@ struct map_info
 struct tile
 {
 	int32 num, property, althard, more2;
-	byte  more3,more4;
+	uint8  more3,more4;
 	int32 buff[15];
 };
 
@@ -604,7 +605,7 @@ struct pic_info
 	int16 yoffset;
 	int16 xoffset;
 	int16 m_parentSeq;
-	byte m_bCustomSettingsApplied;
+	uint8 m_bCustomSettingsApplied;
 	int16 m_parentFrame;
 };
 
@@ -624,6 +625,8 @@ struct soundstruct
 	int32 freq; //what speed it was played at
 };
 
+double ConvertMillibelsToPercentage(int value);
+
 class SoundBankDummy
 {
 public:
@@ -633,8 +636,31 @@ public:
 	}
 
 	void Stop() {GetAudioManager()->Stop(m_audioID); m_audioID = 0; m_soundIDThatPlayedUs = 0;};
-	void SetPan(float f) {GetAudioManager()->SetPan(m_audioID,f/1700);};
-	void SetVolume(float f){GetAudioManager()->SetVol(m_audioID, (1800+f) / 1800);};
+	void SetPan(float f) 
+	{
+	
+		float finalPan = f/1700;
+#ifdef _DEBUG
+		//LogMsg("Setting pan of %.02f to %f", f, finalPan);
+#endif
+		GetAudioManager()->SetPan(m_audioID, finalPan);
+	};
+
+	void SetVolume(float f)
+	{
+		GetAudioManager()->SetVol(m_audioID, (1800+f) / 1800);
+	};
+
+	void SetVolumeLogarithmic(float f)
+	{
+#ifdef _DEBUG
+		//LogMsg("Old SetVolume: Changing %.02f to final vol of %.2f", f, (1800 + f) / 1800);
+		//LogMsg("New SetVolume: Changing vol %.02f to %f", f, ConvertMillibelsToPercentage(f));
+#endif
+		GetAudioManager()->SetVol(m_audioID, ConvertMillibelsToPercentage(f));
+	};
+
+
 	bool IsInUse() {if (m_audioID == 0) return false; return GetAudioManager()->IsPlaying(m_audioID);}
 	void Reset()
 	{
@@ -715,7 +741,6 @@ struct DinkGlobalsStatic
 
 	bool m_bRenderBackgroundOnLoad;
 	
-	
 	char g_lastBitmapShown[C_SHOWN_BITMAP_SIZE];
 	int32 last_fill_screen_palette_color;
 
@@ -723,10 +748,11 @@ struct DinkGlobalsStatic
 	int32 status_might_not_require_update;
 	int32 m_saveStatesDisabled;
 
+	int32 m_hasMusicModApplied;
+	float m_musicModVolume;
 	//add new vars above this, and remove the byte count from below.  You can safely assume they start as 0
-	char m_bufferForExpansion[4831];
+	char m_bufferForExpansion[4823];
 };
-
 
 
 enum eDinkGameState

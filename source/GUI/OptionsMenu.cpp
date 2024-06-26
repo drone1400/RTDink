@@ -66,7 +66,11 @@ void OptionsMenuOnSelect(VariantList *pVList) //0=vec2 point of click, 1=entity 
 	{
 		GetBaseApp()->SetVideoMode(1920, 1080, false);
 	}
-	
+	if (pEntClicked->GetName() == "vid_uxga")
+	{
+		GetBaseApp()->SetVideoMode(1600, 1200, false);
+	}
+
 
 	if (pEntClicked->GetName() == "controls_0")
 	{
@@ -301,7 +305,7 @@ void OnProgressChangedMusic(Variant *pDataObject)
 {
 	float musicVol = pDataObject->GetFloat();
 	GetApp()->GetVar("music_vol")->Set(musicVol);
-	//LogMsg("Music vol changed to %.2f", musicVol);
+	LogMsg("Music vol changed to %.2f", musicVol);
 	GetAudioManager()->SetMusicVol(musicVol);
 }
 
@@ -398,6 +402,12 @@ void OptionsMenuAddScrollContent(Entity *pParent)
 		y += spacerY;
 		pEnt = CreateTextButtonEntity(pBG, "vid_hd", startX, y, "1920X1080");
 		pEnt->GetShared()->GetFunction("OnButtonSelected")->sig_function.connect(&OptionsMenuOnSelect);
+		
+
+		pEnt = CreateTextButtonEntity(pBG, "vid_uxga", startX + 350, y, "1600x1200");
+		pEnt->GetShared()->GetFunction("OnButtonSelected")->sig_function.connect(&OptionsMenuOnSelect);
+
+
 		y += spacerY;
 	}
 
@@ -570,6 +580,9 @@ void OptionsMenuAddScrollContent(Entity *pParent)
 	//music vol slider
 	y += spacerY+iPhoneMapY2X(26);
 	EntityComponent *pSliderComp = CreateSlider(pBG, startX, y, iPhoneMapX(360), "interface/slider_button.rttex", "Min", "Music volume", "Max");
+	
+	LogMsg("Music vol %.2f", GetApp()->GetVar("music_vol")->GetFloat());
+	
 	pSliderComp->GetVar("progress")->Set( GetApp()->GetVar("music_vol")->GetFloat());
 	pSliderComp->GetVar("progress")->GetSigOnChanged()->connect(&OnProgressChangedMusic);
 

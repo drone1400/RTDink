@@ -9,6 +9,8 @@ windows_vs2017/.idea/
 # object files
 windows_vs2017/Win32/
 windows_vs2017/x64/
+windows_vs2017/winRTDink/Win32/
+windows_vs2017/winRTDink/x64/
 
 # baked proton textures
 *.rttex

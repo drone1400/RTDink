@@ -309,7 +309,7 @@ struct varman
 struct item_struct
 {
 	bool active;
-	char name[10];
+	char name[52];
 	int32 seq;
 	int32 frame;
 };
@@ -321,7 +321,7 @@ struct player_info_tile
 
 struct global_function
 {
-	char file[10];
+	char file[52];
 	char func[20];
 };
 
@@ -384,7 +384,7 @@ struct player_short_info
 
 struct refinfo
 {
-	char name[10];
+	char name[52];
 	int32 location;
 	int32 current;
 	int32 level;
